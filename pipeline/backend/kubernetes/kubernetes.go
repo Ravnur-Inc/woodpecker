@@ -52,6 +52,14 @@ const (
 	maxRetryDuration      = 1 * time.Minute
 )
 
+// waitStepPollInterval is how often WaitStep re-checks pod existence directly,
+// as a backstop against informer delete/update events that are silently lost
+// under API server throttling or stale watches (e.g. on AKS). Without it a
+// detached service whose pod is deleted at workflow teardown could keep
+// WaitStep blocked until the pipeline timeout. Declared as a var so tests can
+// shorten it.
+var waitStepPollInterval = defaultResyncDuration
+
 type kube struct {
 	client kubernetes.Interface
 	config *config
@@ -343,20 +351,47 @@ func (e *kube) WaitStep(ctx context.Context, step *types.Step, taskUUID string) 
 		return nil, err
 	}
 
+	namespace := e.config.GetNamespace(step.OrgID)
+
 	stop := make(chan struct{})
 	si.Start(stop)
 	defer close(stop)
 
 	// If the pod was deleted before the informer started, no events will
 	// ever arrive. Check explicitly so we don't hang forever.
-	if _, err := e.client.CoreV1().Pods(e.config.GetNamespace(step.OrgID)).Get(ctx, podName, kube_meta_v1.GetOptions{}); kube_errors.IsNotFound(err) {
+	if _, err := e.client.CoreV1().Pods(namespace).Get(ctx, podName, kube_meta_v1.GetOptions{}); kube_errors.IsNotFound(err) {
 		return &types.State{ExitCode: 0, Exited: true}, nil
 	}
 
-	select {
-	case <-finished:
-	case <-ctx.Done():
-		return nil, ctx.Err()
+	// Wait for the informer to signal completion. As a backstop against lost
+	// informer events (delete/update events can be silently dropped under API
+	// server throttling or stale watches, e.g. on AKS), also poll the pod
+	// directly on a ticker so teardown of long-running services is always
+	// detected instead of hanging until the pipeline timeout.
+	poll := time.NewTicker(waitStepPollInterval)
+	defer poll.Stop()
+
+waitLoop:
+	for {
+		select {
+		case <-finished:
+			break waitLoop
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-poll.C:
+			p, err := e.client.CoreV1().Pods(namespace).Get(ctx, podName, kube_meta_v1.GetOptions{})
+			if kube_errors.IsNotFound(err) {
+				return &types.State{ExitCode: 0, Exited: true}, nil
+			}
+			if err != nil {
+				log.Warn().Err(err).Str("pod", podName).Msg("failed to poll pod status, retrying")
+				continue
+			}
+			switch p.Status.Phase {
+			case kube_core_v1.PodSucceeded, kube_core_v1.PodFailed, kube_core_v1.PodUnknown:
+				break waitLoop
+			}
+		}
 	}
 
 	// After the informer signals completion, kubelet may not have finalized
@@ -365,7 +400,7 @@ func (e *kube) WaitStep(ctx context.Context, step *types.Step, taskUUID string) 
 	pod, err := backoff.Retry(
 		ctx,
 		func() (*kube_core_v1.Pod, error) {
-			p, err := e.client.CoreV1().Pods(e.config.GetNamespace(step.OrgID)).Get(ctx, podName, kube_meta_v1.GetOptions{})
+			p, err := e.client.CoreV1().Pods(namespace).Get(ctx, podName, kube_meta_v1.GetOptions{})
 			if err != nil {
 				if kube_errors.IsNotFound(err) {
 					return nil, backoff.Permanent(err)
