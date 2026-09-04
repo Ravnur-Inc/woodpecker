@@ -69,6 +69,7 @@ type kube struct {
 type config struct {
 	Namespace                       string
 	EnableNamespacePerOrg           bool
+	ClusterDomain                   string
 	StorageClass                    string
 	VolumeSize                      string
 	StorageRwx                      bool
@@ -82,6 +83,7 @@ type config struct {
 	PodTolerations                  []Toleration
 	PodAffinity                     *kube_core_v1.Affinity
 	PodAffinityAllowFromStep        bool
+	RuntimeClassAllowFromStep       bool
 	ImagePullSecretNames            []string
 	SecurityContext                 SecurityContextConfig
 	NativeSecretsAllowFromStep      bool
@@ -118,6 +120,7 @@ func configFromCliContext(ctx context.Context) (*config, error) {
 			config := config{
 				Namespace:                    c.String("backend-k8s-namespace"),
 				EnableNamespacePerOrg:        c.Bool("backend-k8s-namespace-per-org"),
+				ClusterDomain:                c.String("backend-k8s-cluster-domain"),
 				StorageClass:                 c.String("backend-k8s-storage-class"),
 				VolumeSize:                   c.String("backend-k8s-volume-size"),
 				StorageRwx:                   c.Bool("backend-k8s-storage-rwx"),
@@ -130,6 +133,7 @@ func configFromCliContext(ctx context.Context) (*config, error) {
 				PodNodeSelectorAllowFromStep: c.Bool("backend-k8s-pod-node-selector-allow-from-step"),
 				PodNodeSelector:              make(map[string]string), // just init empty map to prevent nil panic
 				PodAffinityAllowFromStep:     c.Bool("backend-k8s-pod-affinity-allow-from-step"),
+				RuntimeClassAllowFromStep:    c.Bool("backend-k8s-runtime-class-allow-from-step"),
 				ImagePullSecretNames:         c.StringSlice("backend-k8s-pod-image-pull-secret-names"),
 				SecurityContext: SecurityContextConfig{
 					RunAsNonRoot: c.Bool("backend-k8s-secctx-nonroot"), // cspell:words secctx nonroot

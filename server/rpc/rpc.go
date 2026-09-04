@@ -214,7 +214,7 @@ func (s *RPC) Update(c context.Context, strWorkflowID string, state rpc.StepStat
 		(step.State == model.StatusFailure ||
 			step.State == model.StatusKilled ||
 			step.State == model.StatusError) {
-		metric.FailurePipelineStepInfoCount.WithLabelValues(workflow.Name, repo.FullName, step.Name).Inc()
+		metric.FailurePipelineStepInfoCount.WithLabelValues(workflow.Name, repo.FullName, step.Name, string(step.Type)).Inc()
 	}
 
 	if metric.StepDurationRecord != nil && state.Exited && step.Started > 0 && step.Finished >= step.Started {
@@ -223,6 +223,7 @@ func (s *RPC) Update(c context.Context, strWorkflowID string, state rpc.StepStat
 			workflow.Name,
 			repo.FullName,
 			step.Name,
+			string(step.Type),
 		).Observe(float64(duration))
 	}
 	if state.Exited {
@@ -274,6 +275,11 @@ func (s *RPC) Init(c context.Context, strWorkflowID string, state rpc.WorkflowSt
 
 	// check workflow's own state to prevent re-initializing a finished or blocked workflow
 	if err := checkWorkflowState(workflow.State); err != nil {
+		return err
+	}
+
+	// sanitize agent input: reject states no compatible agent can produce
+	if err := checkAgentReportedInitState(agent.ID, state); err != nil {
 		return err
 	}
 
@@ -344,6 +350,11 @@ func (s *RPC) Done(c context.Context, strWorkflowID string, state rpc.WorkflowSt
 
 	// check workflow's own state to prevent finishing an already-finished or blocked workflow
 	if err := checkWorkflowState(workflow.State); err != nil {
+		return err
+	}
+
+	// sanitize agent input: reject states no compatible agent can produce
+	if err := checkAgentReportedDoneState(agent.ID, state); err != nil {
 		return err
 	}
 
