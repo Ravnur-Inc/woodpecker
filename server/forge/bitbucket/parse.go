@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strings"
 
 	"go.woodpecker-ci.org/woodpecker/v3/server/forge/bitbucket/internal"
 	"go.woodpecker-ci.org/woodpecker/v3/server/forge/types"
@@ -25,14 +26,16 @@ import (
 )
 
 const (
-	hookEvent        = "X-Event-Key"
-	hookPush         = "repo:push"
-	hookPullCreated  = "pullrequest:created"
-	hookPullUpdated  = "pullrequest:updated"
-	hookPullMerged   = "pullrequest:fulfilled"
-	hookPullDeclined = "pullrequest:rejected"
-	stateClosed      = "MERGED"
-	stateDeclined    = "DECLINED"
+	hookEvent              = "X-Event-Key"
+	hookPush               = "repo:push"
+	hookPullCreated        = "pullrequest:created"
+	hookPullUpdated        = "pullrequest:updated"
+	hookPullMerged         = "pullrequest:fulfilled"
+	hookPullDeclined       = "pullrequest:rejected"
+	hookPullCommentCreated = "pullrequest:comment_created"
+	stateOpen              = "OPEN"
+	stateClosed            = "MERGED"
+	stateDeclined          = "DECLINED"
 )
 
 // parseHook parses a Bitbucket hook from an http.Request request and returns Pull Request,
@@ -50,6 +53,8 @@ func parseHook(r *http.Request) (*internal.PullRequestHook, *model.Repo, *model.
 		return nil, r, pl, err
 	case hookPullCreated, hookPullUpdated, hookPullMerged, hookPullDeclined:
 		return parsePullHook(payload)
+	case hookPullCommentCreated:
+		return parsePullCommentHook(payload)
 	default:
 		return nil, nil, nil, &types.ErrIgnoreEvent{Event: hookType}
 	}
@@ -84,4 +89,31 @@ func parsePullHook(payload []byte) (*internal.PullRequestHook, *model.Repo, *mod
 	}
 
 	return &hook, convertRepo(&hook.Repo, &internal.RepoPerm{}), convertPullHook(&hook), nil
+}
+
+// parsePullCommentHook parses a pull request comment hook and returns the Pull
+// Request, Repo and Pipeline details. Comments on pull requests that are no
+// longer open, and empty comments, are ignored.
+func parsePullCommentHook(payload []byte) (*internal.PullRequestHook, *model.Repo, *model.Pipeline, error) {
+	hook := internal.PullRequestCommentHook{}
+
+	if err := json.Unmarshal(payload, &hook); err != nil {
+		return nil, nil, nil, err
+	}
+
+	if hook.PullRequest.State != stateOpen {
+		return nil, nil, nil, &types.ErrIgnoreEvent{
+			Event:  hookPullCommentCreated,
+			Reason: "pull request is not open",
+		}
+	}
+
+	if strings.TrimSpace(hook.Comment.Content.Raw) == "" {
+		return nil, nil, nil, &types.ErrIgnoreEvent{
+			Event:  hookPullCommentCreated,
+			Reason: "empty comment",
+		}
+	}
+
+	return &hook.PullRequestHook, convertRepo(&hook.Repo, &internal.RepoPerm{}), convertPullCommentHook(&hook), nil
 }

@@ -193,6 +193,24 @@ func convertPullHook(from *internal.PullRequestHook) *model.Pipeline {
 	return pipeline
 }
 
+// convertPullCommentHook is a helper function used to convert a Bitbucket pull
+// request comment hook to the Woodpecker pipeline struct. The pull request is
+// guaranteed to be open by the caller, so the merged/declined handling of
+// convertPullHook never applies here.
+func convertPullCommentHook(from *internal.PullRequestCommentHook) *model.Pipeline {
+	pipeline := convertPullHook(&from.PullRequestHook)
+	pipeline.Event = model.EventPullComment
+	pipeline.PullRequestComment = from.Comment.Content.Raw
+	if !from.Comment.Created.IsZero() {
+		pipeline.Timestamp = from.Comment.Created.UTC().Unix()
+	}
+	// link to the comment itself rather than the pull request
+	if href := from.Comment.Links.HTML.Href; href != "" {
+		pipeline.ForgeURL = href
+	}
+	return pipeline
+}
+
 // convertPushHook is a helper function used to convert a Bitbucket push
 // hook to the Woodpecker pipeline struct holding commit information.
 func convertPushHook(hook *internal.PushHook, change *internal.Change) *model.Pipeline {

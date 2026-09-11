@@ -22,6 +22,7 @@ const (
 	EventPull         Event = "pull_request"
 	EventPullClosed   Event = "pull_request_closed"
 	EventPullMetadata Event = "pull_request_metadata"
+	EventPullComment  Event = "pull_request_comment"
 	EventTag          Event = "tag"
 	EventRelease      Event = "release"
 	EventDeploy       Event = "deployment"
@@ -33,7 +34,8 @@ func (event Event) IsPull() bool {
 	switch event {
 	case EventPull,
 		EventPullClosed,
-		EventPullMetadata:
+		EventPullMetadata,
+		EventPullComment:
 		return true
 	}
 	return false

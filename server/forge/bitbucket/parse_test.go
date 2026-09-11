@@ -16,6 +16,7 @@ package bitbucket
 
 import (
 	"bytes"
+	"errors"
 	"net/http"
 	"testing"
 
@@ -25,6 +26,36 @@ import (
 	"go.woodpecker-ci.org/woodpecker/v3/server/forge/types"
 	"go.woodpecker-ci.org/woodpecker/v3/server/model"
 )
+
+// Every event registered with Bitbucket at activation time must be handled by
+// parseHook, otherwise the delivery arrives and is silently ignored.
+func Test_webhookEventsAreParsed(t *testing.T) {
+	// a payload carrying just enough of every shape to reach each converter
+	const minimalPayload = `{
+		"repository": {"full_name": "owner/name", "scm": "git"},
+		"push": {"changes": []},
+		"pullrequest": {"id": 1, "state": "OPEN"},
+		"comment": {"id": 1, "content": {"raw": "/x"}}
+	}`
+
+	for _, event := range webhookEvents {
+		t.Run(event, func(t *testing.T) {
+			buf := bytes.NewBufferString(minimalPayload)
+			req, _ := http.NewRequest(http.MethodPost, "/hook", buf)
+			req.Header = http.Header{}
+			req.Header.Set(hookEvent, event)
+
+			_, _, _, err := parseHook(req)
+			// the payload may still be ignored for a stated reason, but it must
+			// never be rejected merely for being an unknown event type
+			var ignoreErr *types.ErrIgnoreEvent
+			if errors.As(err, &ignoreErr) {
+				assert.NotEmpty(t, ignoreErr.Reason,
+					"event %q is registered at activation but not handled by parseHook", event)
+			}
+		})
+	}
+}
 
 func Test_parseHook(t *testing.T) {
 	t.Run("unsupported hook", func(t *testing.T) {
@@ -89,6 +120,62 @@ func Test_parseHook(t *testing.T) {
 		assert.Equal(t, "anbraten/test-2", r.FullName)
 		assert.Equal(t, model.EventPullClosed, b.Event)
 		assert.Equal(t, "f90e18fc9d45", b.Commit)
+	})
+
+	t.Run("malformed pull-request comment hook", func(t *testing.T) {
+		buf := bytes.NewBufferString("[]")
+		req, _ := http.NewRequest(http.MethodPost, "/hook", buf)
+		req.Header = http.Header{}
+		req.Header.Set(hookEvent, hookPullCommentCreated)
+
+		_, _, _, err := parseHook(req)
+		assert.Error(t, err)
+	})
+
+	t.Run("pull-request comment", func(t *testing.T) {
+		buf := bytes.NewBufferString(fixtures.HookPullRequestCommentCreated)
+		req, _ := http.NewRequest(http.MethodPost, "/hook", buf)
+		req.Header = http.Header{}
+		req.Header.Set(hookEvent, hookPullCommentCreated)
+
+		pr, r, b, err := parseHook(req)
+		assert.NoError(t, err)
+		assert.NotNil(t, pr)
+		assert.Equal(t, "martinherren1984/publictestrepo", r.FullName)
+		assert.Equal(t, model.EventPullComment, b.Event)
+		assert.Equal(t, "d3022fc0ca3d", b.Commit)
+		assert.Equal(t, "/codereview please", b.PullRequestComment)
+		// the pipeline links to the comment, not the pull request
+		assert.Equal(t, "https://api.bitbucket.org/pullrequest_id#comment-42", b.ForgeURL)
+		// the message stays the pull request title, not the comment body
+		assert.Equal(t, "Title of pull request", b.Message)
+		// the actor of a comment hook is the commenter, which drives approval
+		assert.Equal(t, "emmap1", b.Author)
+		assert.Equal(t, "emmap1", b.Sender)
+	})
+
+	t.Run("pull-request comment on a closed pull request", func(t *testing.T) {
+		buf := bytes.NewBufferString(fixtures.HookPullRequestCommentOnClosed)
+		req, _ := http.NewRequest(http.MethodPost, "/hook", buf)
+		req.Header = http.Header{}
+		req.Header.Set(hookEvent, hookPullCommentCreated)
+
+		_, r, b, err := parseHook(req)
+		assert.Nil(t, r)
+		assert.Nil(t, b)
+		assert.ErrorIs(t, err, &types.ErrIgnoreEvent{})
+	})
+
+	t.Run("pull-request comment with an empty body", func(t *testing.T) {
+		buf := bytes.NewBufferString(fixtures.HookPullRequestCommentEmpty)
+		req, _ := http.NewRequest(http.MethodPost, "/hook", buf)
+		req.Header = http.Header{}
+		req.Header.Set(hookEvent, hookPullCommentCreated)
+
+		_, r, b, err := parseHook(req)
+		assert.Nil(t, r)
+		assert.Nil(t, b)
+		assert.ErrorIs(t, err, &types.ErrIgnoreEvent{})
 	})
 
 	t.Run("malformed push", func(t *testing.T) {

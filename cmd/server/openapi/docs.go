@@ -5144,6 +5144,9 @@ const docTemplate = `{
                 "parent": {
                     "type": "integer"
                 },
+                "pr_comment": {
+                    "type": "string"
+                },
                 "pr_draft": {
                     "type": "boolean"
                 },
@@ -5924,6 +5927,7 @@ const docTemplate = `{
                 "pull_request",
                 "pull_request_closed",
                 "pull_request_metadata",
+                "pull_request_comment",
                 "tag",
                 "release",
                 "deployment",
@@ -5935,6 +5939,7 @@ const docTemplate = `{
                 "EventPull",
                 "EventPullClosed",
                 "EventPullMetadata",
+                "EventPullComment",
                 "EventTag",
                 "EventRelease",
                 "EventDeploy",
@@ -6029,6 +6034,9 @@ const docTemplate = `{
                 "milestone": {
                     "type": "string"
                 },
+                "pr_comment": {
+                    "type": "string"
+                },
                 "ref": {
                     "type": "string"
                 },
@@ -6050,6 +6058,7 @@ const docTemplate = `{
                 "pull_request",
                 "pull_request_closed",
                 "pull_request_metadata",
+                "pull_request_comment",
                 "tag",
                 "release",
                 "deployment",
@@ -6061,6 +6070,7 @@ const docTemplate = `{
                 "EventPull",
                 "EventPullClosed",
                 "EventPullMetadata",
+                "EventPullComment",
                 "EventTag",
                 "EventRelease",
                 "EventDeploy",

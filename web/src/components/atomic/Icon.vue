@@ -6,6 +6,7 @@
   <SvgIcon v-else-if="name === 'pull-request'" :bg-circle="bgCircle" :path="mdiSourcePull" size="1.3rem" />
   <SvgIcon v-else-if="name === 'pull-request-closed'" :bg-circle="bgCircle" :path="mdiSourceMerge" size="1.3rem" />
   <SvgIcon v-else-if="name === 'pull-request-metadata'" :bg-circle="bgCircle" :path="mdiPencilOutline" size="1.3rem" />
+  <SvgIcon v-else-if="name === 'pull-request-comment'" :bg-circle="bgCircle" :path="mdiCommentOutline" size="1.3rem" />
   <SvgIcon v-else-if="name === 'manual-pipeline'" :bg-circle="bgCircle" :path="mdiGestureTap" size="1.3rem" />
   <SvgIcon v-else-if="name === 'tag'" :bg-circle="bgCircle" :path="mdiTagOutline" size="1.3rem" />
   <SvgIcon v-else-if="name === 'deployment'" :bg-circle="bgCircle" :path="mdiPackageVariant" size="1.3rem" />
@@ -143,6 +144,7 @@ import {
   mdiCodeBraces,
   mdiCog,
   mdiCogOutline,
+  mdiCommentOutline,
   mdiConsole,
   mdiDocker,
   mdiDotsVertical,
@@ -206,6 +208,7 @@ export type IconNames =
   | 'pull-request'
   | 'pull-request-closed'
   | 'pull-request-metadata'
+  | 'pull-request-comment'
   | 'manual-pipeline'
   | 'tag'
   | 'deployment'

@@ -210,6 +210,18 @@ func TestBitbucket(t *testing.T) {
 	assert.Equal(t, "master", r.Branch)
 	assert.Equal(t, "c14c1bb05dfb1fdcdf06b31485fff61b0ea44277", b.Commit)
 	assert.Equal(t, []string{"main.go"}, b.ChangedFiles)
+
+	// a pull request comment takes the same changed-files path as a pull request
+	buf = bytes.NewBufferString(fixtures.HookPullRequestCommentCreated)
+	req, _ = http.NewRequest(http.MethodPost, "/hook", buf)
+	req.Header = http.Header{}
+	req.Header.Set(hookEvent, hookPullCommentCreated)
+
+	_, b, err = c.Hook(ctx, req)
+	assert.NoError(t, err)
+	assert.Equal(t, model.EventPullComment, b.Event)
+	assert.Equal(t, "/codereview please", b.PullRequestComment)
+	assert.Equal(t, []string{"main.go"}, b.ChangedFiles)
 }
 
 var (

@@ -15,7 +15,8 @@
           // eslint-disable vue/html-indent
           pipeline.event === 'pull_request' ||
           pipeline.event === 'pull_request_closed' ||
-          pipeline.event === 'pull_request_metadata'
+          pipeline.event === 'pull_request_metadata' ||
+          pipeline.event === 'pull_request_comment'
           // eslint-enable vue/html-indent
         "
         class="text-wp-link-100 hover:text-wp-link-200 flex min-w-0 items-center space-x-1"

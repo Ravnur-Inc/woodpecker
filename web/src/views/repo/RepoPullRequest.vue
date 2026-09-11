@@ -26,7 +26,10 @@ const allPipelines = requiredInject('pipelines');
 const pipelines = computed(() =>
   allPipelines.value.filter(
     (b) =>
-      (b.event === 'pull_request' || b.event === 'pull_request_closed' || b.event === 'pull_request_metadata') &&
+      (b.event === 'pull_request' ||
+        b.event === 'pull_request_closed' ||
+        b.event === 'pull_request_metadata' ||
+        b.event === 'pull_request_comment') &&
       b.ref
         .replaceAll('refs/pull/', '')
         .replaceAll('refs/merge-requests/', '')

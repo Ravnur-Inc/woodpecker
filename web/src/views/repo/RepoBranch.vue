@@ -27,7 +27,8 @@ const pipelines = computed(() =>
       b.branch === branch.value &&
       b.event !== 'pull_request' &&
       b.event !== 'pull_request_closed' &&
-      b.event !== 'pull_request_metadata',
+      b.event !== 'pull_request_metadata' &&
+      b.event !== 'pull_request_comment',
   ),
 );
 
