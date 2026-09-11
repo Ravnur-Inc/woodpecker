@@ -43,3 +43,28 @@ var HookPullRequestMerged string
 
 //go:embed HookPullRequestDeclined.json
 var HookPullRequestDeclined string
+
+//go:embed HookPullRequestCommentCreated.json
+var HookPullRequestCommentCreated string
+
+// HookPullRequestCommentOnClosed is a comment created on a pull request that
+// has already been merged, which must be ignored.
+const HookPullRequestCommentOnClosed = `
+{
+  "actor": { "username": "emmap1" },
+  "comment": { "id": 43, "content": { "raw": "/codereview" } },
+  "pullrequest": { "id": 1, "state": "MERGED" },
+  "repository": { "full_name": "user_name/repo_name", "scm": "git" }
+}
+`
+
+// HookPullRequestCommentEmpty is a comment carrying no usable body, which must
+// be ignored.
+const HookPullRequestCommentEmpty = `
+{
+  "actor": { "username": "emmap1" },
+  "comment": { "id": 44, "content": { "raw": "   \n  " } },
+  "pullrequest": { "id": 1, "state": "OPEN" },
+  "repository": { "full_name": "user_name/repo_name", "scm": "git" }
+}
+`

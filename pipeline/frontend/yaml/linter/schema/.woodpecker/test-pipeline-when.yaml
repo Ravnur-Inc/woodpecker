@@ -16,6 +16,8 @@ when:
   - event:
       exclude: pull_request_metadata
     evaluate: 'CI_COMMIT_AUTHOR == "woodpecker-ci"'
+  - event: pull_request_comment
+    comment: /codereview
 
 steps:
   echo:

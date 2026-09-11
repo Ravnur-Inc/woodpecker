@@ -138,6 +138,39 @@ func Test_convertPullHook(t *testing.T) {
 	assert.Equal(t, hook.PullRequest.Updated.Unix(), pipeline.Timestamp)
 }
 
+func Test_convertPullCommentHook(t *testing.T) {
+	hook := &internal.PullRequestCommentHook{}
+	hook.Actor.Login = "commenter"
+	hook.Actor.Links.Avatar.Href = "https://..."
+	hook.PullRequest.Dest.Branch.Name = "main"
+	hook.PullRequest.Source.Branch.Name = "change"
+	hook.PullRequest.Source.Commit.Hash = "c8411d7"
+	hook.PullRequest.Links.HTML.Href = "https://bitbucket.org/foo/bar/pulls/5"
+	hook.PullRequest.Title = "updated README"
+	hook.PullRequest.Updated = time.Now()
+	hook.PullRequest.ID = 1
+	hook.PullRequest.State = "OPEN"
+	hook.Comment.Content.Raw = "/codereview"
+	hook.Comment.Created = time.Now().Add(time.Hour)
+	hook.Comment.Links.HTML.Href = "https://bitbucket.org/foo/bar/pulls/5#comment-42"
+
+	pipeline := convertPullCommentHook(hook)
+	assert.Equal(t, model.EventPullComment, pipeline.Event)
+	assert.Equal(t, "/codereview", pipeline.PullRequestComment)
+	// the author is the commenter, which is what approval gating checks
+	assert.Equal(t, "commenter", pipeline.Author)
+	assert.Equal(t, "commenter", pipeline.Sender)
+	// the message stays the pull request title so that a comment cannot inject
+	// a skip-ci directive or replace the pipeline label
+	assert.Equal(t, "updated README", pipeline.Message)
+	assert.Equal(t, hook.PullRequest.Source.Commit.Hash, pipeline.Commit)
+	assert.Equal(t, "refs/pull-requests/1/from", pipeline.Ref)
+	assert.Equal(t, "change:main", pipeline.Refspec)
+	// the pipeline links to the comment and is timestamped by it
+	assert.Equal(t, hook.Comment.Links.HTML.Href, pipeline.ForgeURL)
+	assert.Equal(t, hook.Comment.Created.Unix(), pipeline.Timestamp)
+}
+
 func Test_convertPushHook(t *testing.T) {
 	change := internal.Change{}
 	change.New.Target.Hash = "73f9c44d"

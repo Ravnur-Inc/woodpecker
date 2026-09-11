@@ -53,6 +53,7 @@ type (
 		Path     Path                          `yaml:"path,omitempty"`
 		Evaluate string                        `yaml:"evaluate,omitempty"`
 		Event    yaml_base_types.StringOrSlice `yaml:"event,omitempty"`
+		Comment  yaml_base_types.StringOrSlice `yaml:"comment,omitempty"`
 	}
 )
 
@@ -191,6 +192,14 @@ func (c *Constraint) Match(m metadata.Metadata, global bool, env map[string]stri
 
 	if m.Curr.Event == metadata.EventCron {
 		match = match && c.Cron.Match(m.Curr.Cron)
+	}
+
+	// the comment filter implies (and only ever matches) pull request comment
+	// events, so that a `comment` constraint without an accompanying `event`
+	// filter does not silently run on every other event
+	if len(c.Comment) > 0 {
+		match = match && m.Curr.Event == metadata.EventPullComment &&
+			matchCommentCommand(c.Comment, m.Curr.Commit.PullRequestComment)
 	}
 
 	if c.Evaluate != "" {

@@ -325,6 +325,18 @@ func (c *config) Status(ctx context.Context, user *model.User, repo *model.Repo,
 	return c.newClient(ctx, user).CreateStatus(repo.Owner, repo.Name, pipeline.Commit, &status)
 }
 
+// webhookEvents are the Bitbucket events Woodpecker subscribes to when a repo
+// is activated. Every entry must be handled by parseHook, otherwise the
+// delivery is received and silently ignored.
+var webhookEvents = []string{
+	hookPush,
+	hookPullCreated,
+	hookPullUpdated,
+	hookPullMerged,
+	hookPullDeclined,
+	hookPullCommentCreated,
+}
+
 // Activate activates the repository by registering repository push hooks with
 // the Bitbucket repository. Prior to registering hook, previously created hooks
 // are deleted.
@@ -338,7 +350,7 @@ func (c *config) Activate(ctx context.Context, u *model.User, r *model.Repo, lin
 	return c.newClient(ctx, u).CreateHook(r.Owner, r.Name, &internal.Hook{
 		Active: true,
 		Desc:   rawURL.Host,
-		Events: []string{"repo:push", "pullrequest:created", "pullrequest:updated", "pullrequest:fulfilled", "pullrequest:rejected"},
+		Events: webhookEvents,
 		URL:    link,
 	})
 }
@@ -458,7 +470,7 @@ func (c *config) Hook(ctx context.Context, req *http.Request) (*model.Repo, *mod
 		if err != nil {
 			return nil, nil, err
 		}
-	case model.EventPull:
+	case model.EventPull, model.EventPullComment:
 		client := c.newClient(ctx, u)
 
 		if pr == nil {

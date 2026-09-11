@@ -22,7 +22,9 @@ import (
 	"go.uber.org/multierr"
 
 	pipeline_errors "go.woodpecker-ci.org/woodpecker/v3/pipeline/errors"
+	"go.woodpecker-ci.org/woodpecker/v3/pipeline/frontend/metadata"
 	"go.woodpecker-ci.org/woodpecker/v3/pipeline/frontend/yaml"
+	"go.woodpecker-ci.org/woodpecker/v3/pipeline/frontend/yaml/constraint"
 	"go.woodpecker-ci.org/woodpecker/v3/pipeline/frontend/yaml/linter/schema"
 	"go.woodpecker-ci.org/woodpecker/v3/pipeline/frontend/yaml/types"
 	"go.woodpecker-ci.org/woodpecker/v3/pipeline/frontend/yaml/utils"
@@ -447,6 +449,42 @@ func (l *Linter) lintBadHabits(config *WorkflowConfig) (err error) {
 				})
 			}
 		}
+	}
+
+	err = multierr.Append(err, lintUnreachableCommentFilters(config, parsed))
+
+	return err
+}
+
+// lintUnreachableCommentFilters warns about `when` blocks that combine a
+// `comment` filter with an `event` filter that does not include
+// `pull_request_comment`. The comment filter implies that event, so such a
+// constraint can never match.
+func lintUnreachableCommentFilters(config *WorkflowConfig, parsed *types.Workflow) (err error) {
+	check := func(constraints []constraint.Constraint, prefix string) {
+		for i, c := range constraints {
+			if len(c.Comment) == 0 || len(c.Event) == 0 {
+				continue
+			}
+			if slices.Contains(c.Event, string(metadata.EventPullComment)) {
+				continue
+			}
+			err = multierr.Append(err, &pipeline_errors.PipelineError{
+				Type:    pipeline_errors.PipelineErrorTypeBadHabit,
+				Message: "A `comment` filter only matches `pull_request_comment` events, so this condition can never be true",
+				Data: pipeline_errors.BadHabitErrorData{
+					File:  config.File,
+					Field: fmt.Sprintf("%s[%d]", prefix, i),
+					Docs:  "https://woodpecker-ci.org/docs/usage/workflow-syntax#comment",
+				},
+				IsWarning: true,
+			})
+		}
+	}
+
+	check(parsed.When.Constraints, "when")
+	for _, step := range parsed.Steps.ContainerList {
+		check(step.When.Constraints, fmt.Sprintf("steps.%s.when", step.Name))
 	}
 
 	return err

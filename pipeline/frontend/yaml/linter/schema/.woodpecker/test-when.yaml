@@ -37,6 +37,7 @@ steps:
         - pull_request
         - pull_request_closed
         - pull_request_metadata
+        - pull_request_comment
         - tag
         - deployment
         - release
@@ -165,3 +166,19 @@ steps:
     when:
       - event: push
         evaluate: 'CI_PIPELINE_EVENT == "push" && CI_REPO == "owner/repo"'
+
+  when-comment:
+    image: alpine
+    commands: echo "test"
+    when:
+      comment: /codereview
+      event: pull_request_comment
+
+  when-comment-list:
+    image: alpine
+    commands: echo "test"
+    when:
+      - event: pull_request_comment
+        comment:
+          - /codereview
+          - /deploy

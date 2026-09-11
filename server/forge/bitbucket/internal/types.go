@@ -198,6 +198,28 @@ type PullRequestHook struct {
 	} `json:"pullrequest"`
 }
 
+// PullRequestCommentHook is the payload of a "pullrequest:comment_created"
+// webhook. It carries the same actor/repository/pullrequest objects as a plain
+// pull request hook, plus the comment itself.
+type PullRequestCommentHook struct {
+	PullRequestHook
+	Comment Comment `json:"comment"`
+}
+
+type Comment struct {
+	ID      int       `json:"id"`
+	Created time.Time `json:"created_on"`
+	Updated time.Time `json:"updated_on"`
+	Deleted bool      `json:"deleted"`
+	Content struct {
+		Raw    string `json:"raw"`
+		Markup string `json:"markup"`
+		HTML   string `json:"html"`
+	} `json:"content"`
+	User  Account `json:"user"`
+	Links Links   `json:"links"`
+}
+
 type WorkspaceMembershipResp struct {
 	Page   int    `json:"page"`
 	Pages  int    `json:"pagelen"`

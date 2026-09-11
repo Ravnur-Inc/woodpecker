@@ -185,6 +185,71 @@ func TestConstraints(t *testing.T) {
 			env:  map[string]string{"TESTVAR": "qwe"},
 			want: false,
 		},
+		{
+			desc: "comment filter matching the trigger word",
+			conf: "{ event: pull_request_comment, comment: /codereview }",
+			with: metadata.Metadata{Curr: metadata.Pipeline{
+				Event:  metadata.EventPullComment,
+				Commit: metadata.Commit{PullRequestComment: "/codereview"},
+			}},
+			want: true,
+		},
+		{
+			desc: "comment filter matching the trigger word with arguments",
+			conf: "{ event: pull_request_comment, comment: /codereview }",
+			with: metadata.Metadata{Curr: metadata.Pipeline{
+				Event:  metadata.EventPullComment,
+				Commit: metadata.Commit{PullRequestComment: "/codereview --deep"},
+			}},
+			want: true,
+		},
+		{
+			desc: "comment filter not matching the comment body",
+			conf: "{ event: pull_request_comment, comment: /codereview }",
+			with: metadata.Metadata{Curr: metadata.Pipeline{
+				Event:  metadata.EventPullComment,
+				Commit: metadata.Commit{PullRequestComment: "looks good to me"},
+			}},
+			want: false,
+		},
+		{
+			desc: "comment filter as a list",
+			conf: "{ event: pull_request_comment, comment: [/deploy, /codereview] }",
+			with: metadata.Metadata{Curr: metadata.Pipeline{
+				Event:  metadata.EventPullComment,
+				Commit: metadata.Commit{PullRequestComment: "/codereview"},
+			}},
+			want: true,
+		},
+		{
+			desc: "comment filter without an event filter implies pull_request_comment",
+			conf: "{ comment: /codereview }",
+			with: metadata.Metadata{Curr: metadata.Pipeline{
+				Event:  metadata.EventPullComment,
+				Commit: metadata.Commit{PullRequestComment: "/codereview"},
+			}},
+			want: true,
+		},
+		{
+			// regression guard: a bare comment filter must never fall through to
+			// other events the way a bare cron filter does
+			desc: "comment filter without an event filter does not match a push",
+			conf: "{ comment: /codereview }",
+			with: metadata.Metadata{Curr: metadata.Pipeline{
+				Event:  metadata.EventPush,
+				Commit: metadata.Commit{Message: "/codereview"},
+			}},
+			want: false,
+		},
+		{
+			desc: "comment filter combined with a non-comment event never matches",
+			conf: "{ event: push, comment: /codereview }",
+			with: metadata.Metadata{Curr: metadata.Pipeline{
+				Event:  metadata.EventPush,
+				Commit: metadata.Commit{PullRequestComment: "/codereview"},
+			}},
+			want: false,
+		},
 	}
 
 	for _, test := range testdata {

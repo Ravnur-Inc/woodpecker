@@ -262,6 +262,7 @@
         "pr": "Pull Request",
         "pr_closed": "Pull Request merged/closed",
         "pr_metadata": "Pull Request metadata changed",
+        "pr_comment": "Pull Request comment",
         "deploy": "Deploy",
         "cron": "Cron",
         "manual": "Manual",

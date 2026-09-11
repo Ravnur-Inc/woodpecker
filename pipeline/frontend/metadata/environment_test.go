@@ -95,4 +95,29 @@ func TestEnviron(t *testing.T) {
 
 	envs = m.Environ()
 	assert.Equal(t, "false", envs["CI_COMMIT_PULL_REQUEST_DRAFT"])
+
+	// a pull request comment event exports the comment body
+	m = Metadata{
+		Sys: System{Name: "wp"},
+		Curr: Pipeline{
+			Event: EventPullComment,
+			Commit: Commit{
+				Refspec:            "branch-a:branch-b",
+				PullRequestComment: "/codereview --deep",
+			},
+		},
+	}
+
+	envs = m.Environ()
+	assert.Equal(t, "/codereview --deep", envs["CI_COMMIT_PULL_REQUEST_COMMENT"])
+
+	// other events do not
+	m = Metadata{
+		Sys:  System{Name: "wp"},
+		Curr: Pipeline{Event: EventPush},
+	}
+
+	envs = m.Environ()
+	_, ok = envs["CI_COMMIT_PULL_REQUEST_COMMENT"]
+	assert.False(t, ok)
 }

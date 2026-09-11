@@ -287,6 +287,7 @@ The available events are:
 - `pull_request`: triggered when a pull request is opened or a new commit is pushed to it.
 - `pull_request_closed`: triggered when a pull request is closed or merged.
 - `pull_request_metadata`: triggered when a pull request metadata has changed (e.g. title, body, label, milestone, ...).
+- `pull_request_comment`: triggered when a comment is added to a pull request. Only supported by Bitbucket, see [forges](../30-administration/10-configuration/12-forges/11-overview.md#supported-features). Use together with the [`comment`](#comment) filter.
 - `tag`: triggered when a tag is pushed.
 - `release`: triggered when a release, pre-release or draft is created. (You can apply further filters using [evaluate](#evaluate) with [environment variables](./50-environment.md#built-in-environment-variables).)
 - `deployment`: triggered when a deployment is created in the repository. (This event can be triggered from Woodpecker directly. GitHub also supports webhook triggers.)
@@ -328,6 +329,72 @@ when:
 ```
 
 [Read more about cron](./45-cron.md)
+
+#### `comment`
+
+Trigger a pipeline by writing a command in a pull request comment. A command
+matches when it appears at the **start of a line** in the comment and is
+followed by whitespace or the end of that line, so `/codereview` matches
+`/codereview --deep` but neither `/codereviewer` nor `please run /codereview`.
+Matching is case-sensitive.
+
+```yaml
+when:
+  - event: pull_request_comment
+    comment: /codereview
+```
+
+Multiple commands can be given, and any one of them triggers the pipeline:
+
+```yaml
+when:
+  - event: pull_request_comment
+    comment: [/codereview, /deploy]
+```
+
+The `comment` filter implies `event: pull_request_comment` — it never matches
+any other event, so a `when` block using `comment` without an `event` filter
+will not run on pushes. Combining `comment` with a different event produces a
+condition that can never be true, and the linter warns about it.
+
+The full comment body is available to steps as
+`CI_COMMIT_PULL_REQUEST_COMMENT`, which is how you read any arguments that
+follow the command.
+
+:::warning
+Comment triggers let anyone who can **comment** on a pull request start a
+pipeline. On Bitbucket that includes users with read-only access. Because a
+`pull_request_comment` pipeline counts as a pull request event, secrets scoped
+to `pull_request` are also available to it.
+
+Before using this event, set [`require_approval`](./75-project-settings.md) to
+`pull_requests` or `all_events` — the default `forks` does **not** gate
+comments on same-repository pull requests — and/or maintain an
+`approval_allowed_users` list.
+:::
+
+:::warning
+`CI_COMMIT_PULL_REQUEST_COMMENT` contains text written by the commenter. Never
+interpolate it directly into a shell command; read it from the environment
+inside your script instead.
+:::
+
+To stop a pipeline that posts comments from re-triggering itself, filter out
+your bot account:
+
+```yaml
+when:
+  - event: pull_request_comment
+    comment: /codereview
+    evaluate: 'CI_PIPELINE_AUTHOR != "my-ci-bot"'
+```
+
+:::info
+Repositories activated before comment support was added have a webhook that
+does not subscribe to comment events. Open **Repository → Settings → Actions →
+Repair** once (or run `woodpecker-cli repo repair <repo>`) to re-register the
+webhook. Until then, `pull_request_comment` pipelines are never triggered.
+:::
 
 #### `ref`
 

@@ -168,6 +168,10 @@ func TestGetWorkflowMetadata(t *testing.T) {
 			name:     "Test with pull request draft",
 			pipeline: &model.Pipeline{Number: 3, Event: model.EventPull, Ref: "refs/pull/1/head", PullRequestDraft: true},
 		},
+		{
+			name:     "Test with pull request comment",
+			pipeline: &model.Pipeline{Number: 3, Event: model.EventPullComment, Ref: "refs/pull/1/head", PullRequestComment: "/codereview"},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -182,6 +186,10 @@ func TestGetWorkflowMetadata(t *testing.T) {
 			if testCase.name == "Test with pull request draft" {
 				assert.True(t, result.Curr.Commit.PullRequestDraft)
 				assert.Equal(t, "true", result.Environ()["CI_COMMIT_PULL_REQUEST_DRAFT"])
+			}
+			if testCase.name == "Test with pull request comment" {
+				assert.Equal(t, "/codereview", result.Curr.Commit.PullRequestComment)
+				assert.Equal(t, "/codereview", result.Environ()["CI_COMMIT_PULL_REQUEST_COMMENT"])
 			}
 		})
 	}

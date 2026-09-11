@@ -35,6 +35,34 @@ Please also be sure to check the following permissions:
 
 ![bitbucket permissions](bitbucket_permissions.png)
 
+## Pull request comment triggers
+
+Bitbucket Cloud is the only forge that can trigger a pipeline from a pull
+request comment. Configure the trigger word in your pipeline with the
+[`comment`](../../../20-usage/20-workflow-syntax.md#comment) filter:
+
+```yaml
+when:
+  - event: pull_request_comment
+    comment: /codereview
+```
+
+:::info
+Repositories that were activated before your Woodpecker instance gained comment
+support have a webhook that does not subscribe to `pullrequest:comment_created`.
+Open **Repository → Settings → Actions → Repair** once (or run
+`woodpecker-cli repo repair <repo>`) to re-register the webhook. Until then,
+`pull_request_comment` pipelines are never triggered. Repairing deletes and
+recreates the webhook on Bitbucket.
+:::
+
+:::warning
+Anyone who can comment on a pull request can start such a pipeline, including
+users with read-only access. Review the approval settings described in the
+[`comment` filter docs](../../../20-usage/20-workflow-syntax.md#comment) before
+enabling this.
+:::
+
 ## Configuration
 
 This is a full list of configuration options. Please note that many of these options use default configuration values that should work for the majority of installations.

@@ -244,6 +244,10 @@
           "default": [],
           "$ref": "#/definitions/event_constraint_list"
         },
+        "comment": {
+          "description": "Execute only when a pull request comment starts a line with one of these commands. Implies `event: pull_request_comment`. Read more: https://woodpecker-ci.org/docs/usage/workflow-syntax#comment",
+          "$ref": "#/definitions/string_or_string_slice"
+        },
         "ref": {
           "description": "Read more: https://woodpecker-ci.org/docs/usage/workflow-syntax#ref",
           "$ref": "#/definitions/constraint_list"
@@ -499,6 +503,10 @@
           "description": "Read more: https://woodpecker-ci.org/docs/usage/workflow-syntax#event",
           "$ref": "#/definitions/event_constraint_list"
         },
+        "comment": {
+          "description": "Execute only when a pull request comment starts a line with one of these commands. Implies `event: pull_request_comment`. Read more: https://woodpecker-ci.org/docs/usage/workflow-syntax#comment",
+          "$ref": "#/definitions/string_or_string_slice"
+        },
         "ref": {
           "description": "Read more: https://woodpecker-ci.org/docs/usage/workflow-syntax#ref",
           "$ref": "#/definitions/constraint_list"
@@ -589,6 +597,7 @@
         "pull_request",
         "pull_request_closed",
         "pull_request_metadata",
+        "pull_request_comment",
         "tag",
         "deployment",
         "cron",
