@@ -27,7 +27,9 @@ import (
 	"github.com/urfave/cli/v3"
 	kube_core_v1 "k8s.io/api/core/v1"
 	kube_meta_v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes/fake"
+	kube_testing "k8s.io/client-go/testing"
 
 	"go.woodpecker-ci.org/woodpecker/v3/pipeline/backend/types"
 )
@@ -289,6 +291,61 @@ func TestWaitStepReturnsOnAlreadyDeletedPod(t *testing.T) {
 		assert.Equal(t, 0, r.state.ExitCode)
 	case <-time.After(3 * time.Second):
 		t.Fatal("WaitStep did not return for already-deleted pod")
+	}
+}
+
+// TestWaitStepPollBackstopDetectsDeletedPod verifies that WaitStep returns even
+// when the informer never delivers a delete event for a pod that is removed
+// while WaitStep is already waiting. This is the failure mode seen on AKS, where
+// watch events are silently dropped under API server throttling and a detached
+// service would otherwise stay "running" until the pipeline timeout.
+//
+// To isolate the polling backstop from the informer, we install a watch reactor
+// that returns a watcher which never emits any events, so the only way WaitStep
+// can observe the deletion is the direct poll.
+func TestWaitStepPollBackstopDetectsDeletedPod(t *testing.T) {
+	// Shorten the poll interval so the test does not wait the full default.
+	orig := waitStepPollInterval
+	waitStepPollInterval = 50 * time.Millisecond
+	defer func() { waitStepPollInterval = orig }()
+
+	client := fake.NewClientset()
+	// Informer watch yields a watcher that never sends events, simulating a
+	// stale/throttled watch that never reports the pod deletion.
+	client.PrependWatchReactor("pods", func(kube_testing.Action) (bool, watch.Interface, error) {
+		return true, watch.NewFake(), nil
+	})
+
+	engine := makeEngine(client)
+	step := makeStep("poll-backstop-03")
+	namespace := "test-ns"
+
+	podName := createPod(t, client, step, namespace)
+
+	type result struct {
+		state *types.State
+		err   error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		s, err := engine.WaitStep(context.Background(), step, "task-1")
+		ch <- result{s, err}
+	}()
+
+	// Let WaitStep start and pass its initial existence check, then delete the
+	// pod. The informer will never see this because of the no-op watch reactor.
+	time.Sleep(150 * time.Millisecond)
+	err := client.CoreV1().Pods(namespace).Delete(context.Background(), podName, kube_meta_v1.DeleteOptions{})
+	require.NoError(t, err)
+
+	select {
+	case r := <-ch:
+		require.NoError(t, r.err)
+		require.NotNil(t, r.state)
+		assert.True(t, r.state.Exited)
+		assert.Equal(t, 0, r.state.ExitCode)
+	case <-time.After(3 * time.Second):
+		t.Fatal("WaitStep did not detect pod deletion via poll backstop")
 	}
 }
 
