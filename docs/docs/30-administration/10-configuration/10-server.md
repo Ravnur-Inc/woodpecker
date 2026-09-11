@@ -1019,7 +1019,7 @@ Template for the status messages published to forges, uses [Go templates](https:
 Supported variables:
 
 - `context`: Woodpecker's context (see `WOODPECKER_STATUS_CONTEXT`)
-- `event`: the event which started the pipeline
+- `event`: the event which started the pipeline (`pull_request` is shortened to `pr` and `pull_request_comment` to `pr_comment`)
 - `workflow`: the workflow's name
 - `owner`: the repo's owner
 - `repo`: the repo's name

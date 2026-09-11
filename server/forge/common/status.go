@@ -27,8 +27,12 @@ import (
 
 func GetPipelineStatusContext(repo *model.Repo, pipeline *model.Pipeline, workflow *model.Workflow) string {
 	event := string(pipeline.Event)
-	if pipeline.Event == model.EventPull {
+	switch pipeline.Event {
+	case model.EventPull:
 		event = "pr"
+	case model.EventPullComment:
+		// keep the context short, Bitbucket Cloud rejects status keys longer than 40 characters
+		event = "pr_comment"
 	}
 
 	tmpl, err := template.New("context").Parse(server.Config.Server.StatusContextFormat)
