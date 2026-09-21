@@ -15,8 +15,11 @@
 package internal
 
 import (
+	"fmt"
+	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -250,14 +253,38 @@ func (o *ListOpts) Encode() string {
 }
 
 type Error struct {
-	Status int
-	Body   struct {
+	Status int    `json:"-"`
+	Method string `json:"-"`
+	URL    string `json:"-"`
+	// Raw holds the unparsed response body, so failures that do not follow
+	// Bitbucket's error schema (or are not JSON at all) can still be diagnosed.
+	Raw  string `json:"-"`
+	Body struct {
 		Message string `json:"message"`
+		Detail  string `json:"detail"`
+		// Fields holds per-field validation errors, e.g. an invalid webhook URL.
+		Fields map[string][]string `json:"fields"`
 	} `json:"error"`
 }
 
 func (e Error) Error() string {
-	return e.Body.Message
+	msg := e.Body.Message
+	if e.Body.Detail != "" {
+		msg = fmt.Sprintf("%s: %s", msg, e.Body.Detail)
+	}
+	for field, errs := range e.Body.Fields {
+		msg = fmt.Sprintf("%s [%s: %s]", msg, field, strings.Join(errs, ", "))
+	}
+	if strings.TrimSpace(msg) == "" {
+		msg = strings.TrimSpace(e.Raw)
+	}
+	if msg == "" {
+		msg = http.StatusText(e.Status)
+	}
+	if e.Method != "" && e.URL != "" {
+		return fmt.Sprintf("%s %s: %d: %s", e.Method, e.URL, e.Status, msg)
+	}
+	return msg
 }
 
 type RepoPermResp struct {

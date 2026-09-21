@@ -48,6 +48,10 @@ const (
 	pathDir           = "%s/2.0/repositories/%s/%s/src/%s/%s"
 	pathDiffStat      = "%s/2.0/repositories/%s/%s/diffstat/%s?%s"
 	pageSize          = 100
+
+	// maxErrorBodySize limits how much of an error response body is kept for
+	// reporting, so a large (e.g. HTML) response cannot blow up the error.
+	maxErrorBodySize = 4096
 )
 
 type Client struct {
@@ -323,9 +327,17 @@ func (c *Client) do(rawURL, method string, in, out any) (*string, error) {
 	// if an error is encountered, parse and return the
 	// error response.
 	if resp.StatusCode > http.StatusPartialContent {
-		err := Error{}
-		_ = json.NewDecoder(resp.Body).Decode(&err)
-		err.Status = resp.StatusCode
+		body, readErr := io.ReadAll(io.LimitReader(resp.Body, maxErrorBodySize))
+		if readErr != nil {
+			return nil, fmt.Errorf("%s %s: %d: could not read response body: %w", method, uri, resp.StatusCode, readErr)
+		}
+		err := Error{
+			Status: resp.StatusCode,
+			Method: method,
+			URL:    uri.String(),
+			Raw:    string(body),
+		}
+		_ = json.Unmarshal(body, &err)
 		return nil, err
 	}
 

@@ -347,12 +347,16 @@ func (c *config) Activate(ctx context.Context, u *model.User, r *model.Repo, lin
 	}
 	_ = c.Deactivate(ctx, u, r, link)
 
-	return c.newClient(ctx, u).CreateHook(r.Owner, r.Name, &internal.Hook{
+	if err := c.newClient(ctx, u).CreateHook(r.Owner, r.Name, &internal.Hook{
 		Active: true,
 		Desc:   rawURL.Host,
 		Events: webhookEvents,
 		URL:    link,
-	})
+	}); err != nil {
+		return fmt.Errorf("could not create hook for %s/%s: %w", r.Owner, r.Name, err)
+	}
+
+	return nil
 }
 
 // Deactivate deactivates the repository be removing repository push hooks from
