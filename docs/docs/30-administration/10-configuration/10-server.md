@@ -382,6 +382,9 @@ woodpecker_pipeline_time{branch="dev",pipeline="total",repo="woodpecker-ci/woodp
 # HELP woodpecker_pipeline_total_count Total number of builds.
 # TYPE woodpecker_pipeline_total_count gauge
 woodpecker_pipeline_total_count 1025
+# HELP woodpecker_active_steps Total number of pipeline steps that are pending or running, i.e. the current agent workload. Intended as an autoscaling signal.
+# TYPE woodpecker_active_steps gauge
+woodpecker_active_steps 0
 # HELP woodpecker_pending_steps Total number of pending pipeline steps.
 # TYPE woodpecker_pending_steps gauge
 woodpecker_pending_steps 0

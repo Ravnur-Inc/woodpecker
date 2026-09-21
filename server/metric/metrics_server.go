@@ -55,6 +55,11 @@ func StartMetricsCollector(ctx context.Context, c *cli.Command, _store store.Sto
 		Name:      "running_steps",
 		Help:      "Total number of running pipeline steps.",
 	})
+	activeSteps := promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: "woodpecker",
+		Name:      "active_steps",
+		Help:      "Total number of pipeline steps that are pending or running, i.e. the current agent workload. Intended as an autoscaling signal.",
+	})
 	workers := promauto.NewGauge(prometheus.GaugeOpts{
 		Namespace: "woodpecker",
 		Name:      "worker_count",
@@ -104,6 +109,7 @@ func StartMetricsCollector(ctx context.Context, c *cli.Command, _store store.Sto
 			pendingSteps.Set(float64(stats.Stats.Pending))
 			waitingSteps.Set(float64(stats.Stats.WaitingOnDeps))
 			runningSteps.Set(float64(stats.Stats.Running))
+			activeSteps.Set(float64(stats.Stats.Pending + stats.Stats.Running))
 			workers.Set(float64(stats.Stats.Workers))
 
 			select {
