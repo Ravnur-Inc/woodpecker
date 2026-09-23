@@ -915,6 +915,93 @@ func TestRPCWait(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "not allowed to interact")
 	})
+
+	// runningTaskQueue returns a memory queue where workflow 30 is running on agent 1.
+	runningTaskQueue := func(t *testing.T) queue.Queue {
+		t.Helper()
+		q := queue.NewMemoryQueue(t.Context())
+		require.NoError(t, q.PushAtOnce(t.Context(), []*model.Task{{ID: "30"}}))
+		task, err := q.Poll(t.Context(), 1, func(*model.Task) (bool, int) { return true, 1 })
+		require.NoError(t, err)
+		require.Equal(t, "30", task.ID)
+		return q
+	}
+
+	t.Run("signal cancel while waiting", func(t *testing.T) {
+		mockStore := store_mocks.NewMockStore(t)
+		mockStore.On("AgentFind", int64(1)).Return(defaultAgent(), nil)
+		mockStore.On("WorkflowLoad", int64(30)).Return(defaultWorkflow(model.StatusRunning), nil)
+		mockStore.On("GetPipeline", int64(20)).Return(defaultPipeline(model.StatusRunning), nil)
+		mockStore.On("GetRepo", int64(10)).Return(defaultRepo(), nil)
+
+		q := runningTaskQueue(t)
+		rpcInst := newTestRPC(t, mockStore, q)
+		ctx := context.WithValue(t.Context(), agentIDKey, int64(1))
+
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+			assert.NoError(t, q.ErrorAtOnce(t.Context(), []string{"30"}, queue.ErrCancel))
+		}()
+
+		canceled, err := rpcInst.Wait(ctx, "30")
+		require.NoError(t, err)
+		assert.True(t, canceled)
+	})
+
+	t.Run("signal cancel if agent starts waiting after the workflow got canceled", func(t *testing.T) {
+		mockStore := store_mocks.NewMockStore(t)
+		mockStore.On("AgentFind", int64(1)).Return(defaultAgent(), nil)
+		mockStore.On("WorkflowLoad", int64(30)).Return(defaultWorkflow(model.StatusRunning), nil)
+		mockStore.On("GetPipeline", int64(20)).Return(defaultPipeline(model.StatusKilled), nil)
+		mockStore.On("GetRepo", int64(10)).Return(defaultRepo(), nil)
+
+		q := runningTaskQueue(t)
+		// cancel happens while the agent is not waiting, e.g. its Wait call got interrupted
+		require.NoError(t, q.ErrorAtOnce(t.Context(), []string{"30"}, queue.ErrCancel))
+
+		rpcInst := newTestRPC(t, mockStore, q)
+		ctx := context.WithValue(t.Context(), agentIDKey, int64(1))
+
+		canceled, err := rpcInst.Wait(ctx, "30")
+		require.NoError(t, err)
+		assert.True(t, canceled)
+	})
+
+	t.Run("no cancel if workflow finished normally", func(t *testing.T) {
+		mockStore := store_mocks.NewMockStore(t)
+		mockStore.On("AgentFind", int64(1)).Return(defaultAgent(), nil)
+		mockStore.On("WorkflowLoad", int64(30)).Return(defaultWorkflow(model.StatusSuccess), nil)
+		mockStore.On("GetPipeline", int64(20)).Return(defaultPipeline(model.StatusRunning), nil)
+		mockStore.On("GetRepo", int64(10)).Return(defaultRepo(), nil)
+
+		q := runningTaskQueue(t)
+		require.NoError(t, q.Done(t.Context(), "30", model.StatusSuccess))
+
+		rpcInst := newTestRPC(t, mockStore, q)
+		ctx := context.WithValue(t.Context(), agentIDKey, int64(1))
+
+		canceled, err := rpcInst.Wait(ctx, "30")
+		require.NoError(t, err)
+		assert.False(t, canceled)
+	})
+
+	t.Run("no cancel if agent already reported the canceled workflow as done", func(t *testing.T) {
+		mockStore := store_mocks.NewMockStore(t)
+		mockStore.On("AgentFind", int64(1)).Return(defaultAgent(), nil)
+		mockStore.On("WorkflowLoad", int64(30)).Return(defaultWorkflow(model.StatusKilled), nil)
+		mockStore.On("GetPipeline", int64(20)).Return(defaultPipeline(model.StatusKilled), nil)
+		mockStore.On("GetRepo", int64(10)).Return(defaultRepo(), nil)
+
+		q := runningTaskQueue(t)
+		require.NoError(t, q.Done(t.Context(), "30", model.StatusKilled))
+
+		rpcInst := newTestRPC(t, mockStore, q)
+		ctx := context.WithValue(t.Context(), agentIDKey, int64(1))
+
+		canceled, err := rpcInst.Wait(ctx, "30")
+		require.NoError(t, err)
+		assert.False(t, canceled)
+	})
 }
 
 func TestRPCUpdateStepTypeMetric(t *testing.T) {
