@@ -126,9 +126,46 @@ func (s *RPC) Wait(c context.Context, workflowID string) (canceled bool, err err
 		return false, err
 	}
 
+	// The queue forgets a workflow as soon as it got canceled, so an agent that was not
+	// waiting at that moment (e.g. its Wait call got interrupted and was retried afterwards)
+	// would be told the workflow finished normally and keep running it forever.
+	// Double check against the store to not lose the cancel signal.
+	if s.isWorkflowCanceledInStore(workflowID) {
+		log.Debug().Str("workflowID", workflowID).Msg("queue did not know the workflow anymore, but its pipeline got canceled")
+		return true, nil
+	}
+
 	// workflow finished and on issues appeared
 	log.Debug().Str("workflowID", workflowID).Msg("queue reported the workflow as finished")
 	return false, nil
+}
+
+// isWorkflowCanceledInStore returns true if the workflow was not yet reported as done
+// by the agent, but its pipeline already got canceled.
+func (s *RPC) isWorkflowCanceledInStore(strWorkflowID string) bool {
+	workflowID, err := strconv.ParseInt(strWorkflowID, 10, 64)
+	if err != nil {
+		return false
+	}
+
+	workflow, err := s.store.WorkflowLoad(workflowID)
+	if err != nil {
+		log.Error().Err(err).Msgf("cannot find workflow with id %d", workflowID)
+		return false
+	}
+
+	// the agent already reported the workflow as done
+	if !isActiveState(workflow.State) {
+		return false
+	}
+
+	currentPipeline, err := s.store.GetPipeline(workflow.PipelineID)
+	if err != nil {
+		log.Error().Err(err).Msgf("cannot find pipeline with id %d", workflow.PipelineID)
+		return false
+	}
+
+	return currentPipeline.Status == model.StatusKilled || currentPipeline.Status == model.StatusCanceled
 }
 
 // Extend extends the lease for the workflow with the given ID.
